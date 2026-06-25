@@ -40,21 +40,21 @@
 <section class="work-grid">
     <div class="panel">
         <div class="panel-heading">
-            <h2>@(editingId is null ? "Add Expense" : $"Edit Expense #{editingId}")</h2>
+            <h2>Add Expense</h2>
         </div>
 
-        <EditForm Model="form" OnValidSubmit="SaveExpenseAsync">
+        <EditForm Model="createForm" OnValidSubmit="CreateExpenseAsync">
             <DataAnnotationsValidator />
             <ValidationSummary />
 
             <div class="form-grid">
                 <label>
                     Amount
-                    <InputNumber class="form-control" @bind-Value="form.Amount" />
+                    <InputNumber class="form-control" @bind-Value="createForm.Amount" />
                 </label>
                 <label>
                     Category
-                    <InputSelect class="form-select" @bind-Value="form.CategoryId">
+                    <InputSelect class="form-select" @bind-Value="createForm.CategoryId">
                         <option value="0">Select category</option>
                         @foreach (var category in categories)
                         {
@@ -64,19 +64,19 @@
                 </label>
                 <label>
                     Date
-                    <InputText class="form-control" type="date" @bind-Value="form.Date" />
+                    <InputText class="form-control" type="date" @bind-Value="createForm.Date" />
                 </label>
                 <label class="span-2">
                     Description
-                    <InputText class="form-control" @bind-Value="form.Description" />
+                    <InputText class="form-control" @bind-Value="createForm.Description" />
                 </label>
             </div>
 
             <div class="button-row">
                 <button class="btn btn-primary" type="submit" disabled="@isSaving">
-                    @(editingId is null ? "Create" : "Save changes")
+                    Create
                 </button>
-                <button class="btn btn-link" type="button" @onclick="ResetForm">Clear</button>
+                <button class="btn btn-link" type="button" @onclick="ResetCreateForm">Clear</button>
             </div>
         </EditForm>
     </div>
@@ -147,8 +147,59 @@
     </div>
 </section>
 
+@if (isEditModalOpen)
+{
+    <div class="modal-backdrop-custom" @onclick="CloseEditModal">
+        <div class="edit-modal" @onclick:stopPropagation="true" role="dialog" aria-modal="true" aria-labelledby="editExpenseTitle">
+            <div class="modal-header-custom">
+                <div>
+                    <p class="eyebrow">Transaction</p>
+                    <h2 id="editExpenseTitle">Edit Expense</h2>
+                </div>
+                <button class="btn-close" type="button" aria-label="Close" @onclick="CloseEditModal"></button>
+            </div>
+
+            <EditForm Model="editForm" OnValidSubmit="SaveEditedExpenseAsync">
+                <DataAnnotationsValidator />
+                <ValidationSummary />
+
+                <div class="form-grid">
+                    <label>
+                        Amount
+                        <InputNumber class="form-control" @bind-Value="editForm.Amount" />
+                    </label>
+                    <label>
+                        Category
+                        <InputSelect class="form-select" @bind-Value="editForm.CategoryId">
+                            <option value="0">Select category</option>
+                            @foreach (var category in categories)
+                            {
+                                <option value="@category.Id">@category.Name</option>
+                            }
+                        </InputSelect>
+                    </label>
+                    <label>
+                        Date
+                        <InputText class="form-control" type="date" @bind-Value="editForm.Date" />
+                    </label>
+                    <label class="span-2">
+                        Description
+                        <InputText class="form-control" @bind-Value="editForm.Description" />
+                    </label>
+                </div>
+
+                <div class="button-row">
+                    <button class="btn btn-primary" type="submit" disabled="@isSaving">Save changes</button>
+                    <button class="btn btn-link" type="button" @onclick="CloseEditModal">Cancel</button>
+                </div>
+            </EditForm>
+        </div>
+    </div>
+}
+
 @code {
-    private readonly ExpenseForm form = new();
+    private readonly ExpenseForm createForm = new();
+    private readonly ExpenseForm editForm = new();
     private IReadOnlyList<CategoryResponse> categories = [];
     private IReadOnlyList<ExpenseResponse> expenses = [];
     private string filterCategory = "";
@@ -157,6 +208,7 @@
     private string? message;
     private string messageClass = "alert-info";
     private int? editingId;
+    private bool isEditModalOpen;
     private int currentPage = 1;
     private int pageSize = 10;
     private bool isLoading;
@@ -172,7 +224,7 @@
     protected override async Task OnInitializedAsync()
     {
         categories = await ApiClient.GetCategoriesAsync();
-        ResetForm();
+        ResetCreateForm();
         await LoadExpensesAsync();
     }
 
@@ -196,7 +248,7 @@
         }
     }
 
-    private async Task SaveExpenseAsync()
+    private async Task CreateExpenseAsync()
     {
         isSaving = true;
         message = null;
@@ -204,23 +256,15 @@
         try
         {
             var request = new ExpenseRequest(
-                form.Amount,
-                form.CategoryId,
-                form.Description.Trim(),
-                form.Date);
+                createForm.Amount,
+                createForm.CategoryId,
+                createForm.Description.Trim(),
+                createForm.Date);
 
-            if (editingId is null)
-            {
-                await ApiClient.CreateExpenseAsync(request);
-                ShowMessage("Expense created.", false);
-            }
-            else
-            {
-                await ApiClient.UpdateExpenseAsync(editingId.Value, request);
-                ShowMessage("Expense updated.", false);
-            }
+            await ApiClient.CreateExpenseAsync(request);
+            ShowMessage("Expense created.", false);
 
-            ResetForm();
+            ResetCreateForm();
             await LoadExpensesAsync();
         }
         catch (Exception exception)
@@ -236,10 +280,50 @@
     private void EditExpense(ExpenseResponse expense)
     {
         editingId = expense.Id;
-        form.Amount = expense.Amount;
-        form.CategoryId = expense.CategoryId;
-        form.Description = expense.Description;
-        form.Date = expense.Date.ToString("yyyy-MM-dd");
+        editForm.Amount = expense.Amount;
+        editForm.CategoryId = expense.CategoryId;
+        editForm.Description = expense.Description;
+        editForm.Date = expense.Date.ToString("yyyy-MM-dd");
+        isEditModalOpen = true;
+    }
+
+    private async Task SaveEditedExpenseAsync()
+    {
+        if (editingId is null)
+        {
+            return;
+        }
+
+        isSaving = true;
+        message = null;
+
+        try
+        {
+            var request = new ExpenseRequest(
+                editForm.Amount,
+                editForm.CategoryId,
+                editForm.Description.Trim(),
+                editForm.Date);
+
+            await ApiClient.UpdateExpenseAsync(editingId.Value, request);
+            ShowMessage("Expense updated.", false);
+            CloseEditModal();
+            await LoadExpensesAsync();
+        }
+        catch (Exception exception)
+        {
+            ShowMessage(exception.Message, true);
+        }
+        finally
+        {
+            isSaving = false;
+        }
+    }
+
+    private void CloseEditModal()
+    {
+        isEditModalOpen = false;
+        editingId = null;
     }
 
     private void UpdateFilterFrom(ChangeEventArgs args)
@@ -266,13 +350,12 @@
         }
     }
 
-    private void ResetForm()
+    private void ResetCreateForm()
     {
-        editingId = null;
-        form.Amount = 25;
-        form.CategoryId = categories.FirstOrDefault()?.Id ?? 0;
-        form.Description = "";
-        form.Date = DateOnly.FromDateTime(DateTime.Today).ToString("yyyy-MM-dd");
+        createForm.Amount = 25;
+        createForm.CategoryId = categories.FirstOrDefault()?.Id ?? 0;
+        createForm.Description = "";
+        createForm.Date = DateOnly.FromDateTime(DateTime.Today).ToString("yyyy-MM-dd");
     }
 
     private void PreviousPage()
