@@ -43,14 +43,17 @@
             <h2>Add Expense</h2>
         </div>
 
-        <EditForm Model="createForm" OnValidSubmit="CreateExpenseAsync">
+        <EditForm EditContext="createEditContext" OnValidSubmit="CreateExpenseAsync">
             <DataAnnotationsValidator />
             <ValidationSummary />
 
             <div class="form-grid">
                 <label>
                     Amount
-                    <InputNumber class="form-control" @bind-Value="createForm.Amount" />
+                    <div class="currency-input">
+                        <span>MYR</span>
+                        <InputNumber class="form-control" @bind-Value="createForm.Amount" />
+                    </div>
                 </label>
                 <label>
                     Category
@@ -68,7 +71,7 @@
                 </label>
                 <label class="span-2">
                     Description
-                    <InputText class="form-control" @bind-Value="createForm.Description" />
+                    <InputText class="form-control" placeholder="e.g. Lunch with client" @bind-Value="createForm.Description" />
                 </label>
             </div>
 
@@ -166,7 +169,10 @@
                 <div class="form-grid">
                     <label>
                         Amount
-                        <InputNumber class="form-control" @bind-Value="editForm.Amount" />
+                        <div class="currency-input">
+                            <span>MYR</span>
+                            <InputNumber class="form-control" @bind-Value="editForm.Amount" />
+                        </div>
                     </label>
                     <label>
                         Category
@@ -184,7 +190,7 @@
                     </label>
                     <label class="span-2">
                         Description
-                        <InputText class="form-control" @bind-Value="editForm.Description" />
+                        <InputText class="form-control" placeholder="e.g. Lunch with client" @bind-Value="editForm.Description" />
                     </label>
                 </div>
 
@@ -200,6 +206,7 @@
 @code {
     private readonly ExpenseForm createForm = new();
     private readonly ExpenseForm editForm = new();
+    private EditContext createEditContext = null!;
     private IReadOnlyList<CategoryResponse> categories = [];
     private IReadOnlyList<ExpenseResponse> expenses = [];
     private string filterCategory = "";
@@ -223,8 +230,8 @@
 
     protected override async Task OnInitializedAsync()
     {
-        categories = await ApiClient.GetCategoriesAsync();
         ResetCreateForm();
+        categories = await ApiClient.GetCategoriesAsync();
         await LoadExpensesAsync();
     }
 
@@ -256,7 +263,7 @@
         try
         {
             var request = new ExpenseRequest(
-                createForm.Amount,
+                createForm.Amount.GetValueOrDefault(),
                 createForm.CategoryId,
                 createForm.Description.Trim(),
                 createForm.Date);
@@ -300,7 +307,7 @@
         try
         {
             var request = new ExpenseRequest(
-                editForm.Amount,
+                editForm.Amount.GetValueOrDefault(),
                 editForm.CategoryId,
                 editForm.Description.Trim(),
                 editForm.Date);
@@ -352,10 +359,11 @@
 
     private void ResetCreateForm()
     {
-        createForm.Amount = 25;
-        createForm.CategoryId = categories.FirstOrDefault()?.Id ?? 0;
+        createForm.Amount = null;
+        createForm.CategoryId = 0;
         createForm.Description = "";
-        createForm.Date = DateOnly.FromDateTime(DateTime.Today).ToString("yyyy-MM-dd");
+        createForm.Date = "";
+        createEditContext = new EditContext(createForm);
     }
 
     private void PreviousPage()
@@ -392,8 +400,9 @@
 
     private sealed class ExpenseForm
     {
+        [System.ComponentModel.DataAnnotations.Required(ErrorMessage = "Enter an amount.")]
         [System.ComponentModel.DataAnnotations.Range(0.01, 1_000_000)]
-        public decimal Amount { get; set; }
+        public decimal? Amount { get; set; }
 
         [System.ComponentModel.DataAnnotations.Range(1, int.MaxValue, ErrorMessage = "Select a category.")]
         public int CategoryId { get; set; }

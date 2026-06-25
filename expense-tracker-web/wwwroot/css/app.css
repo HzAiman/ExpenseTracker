@@ -260,6 +260,28 @@ a,
     padding: 1rem;
 }
 
+.currency-input {
+    align-items: stretch;
+    display: flex;
+}
+
+.currency-input span {
+    align-items: center;
+    background: #e7eee9;
+    border: 1px solid #ced8d2;
+    border-radius: 6px 0 0 6px;
+    color: #4a5c53;
+    display: flex;
+    font-weight: 700;
+    padding: 0 0.75rem;
+}
+
+.currency-input .form-control {
+    border-bottom-left-radius: 0;
+    border-left: 0;
+    border-top-left-radius: 0;
+}
+
 .span-2 {
     grid-column: span 2;
 }
