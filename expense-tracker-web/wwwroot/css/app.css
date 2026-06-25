@@ -233,6 +233,26 @@ a,
     gap: 0.2rem;
 }
 
+.category-info {
+    align-items: center;
+    display: flex !important;
+    gap: 0.75rem !important;
+}
+
+.category-icon {
+    background: #e1eee8;
+    border-radius: 6px;
+    color: #1f6f5b;
+    flex: 0 0 auto;
+    height: 2rem;
+    padding: 0.42rem;
+    width: 2rem;
+}
+
+.category-icon path {
+    fill: currentColor;
+}
+
 .form-grid {
     display: grid;
     gap: 0.9rem;
