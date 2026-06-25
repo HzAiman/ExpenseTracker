@@ -55,6 +55,14 @@ The Blazor app does not reference the API project. It uses typed HTTP models and
 
 The API enables CORS for the Blazor development origin, `http://localhost:5290`.
 
+The Blazor API base URL is configured in:
+
+```text
+expense-tracker-web/wwwroot/appsettings.json
+```
+
+Change `ApiBaseUrl` there if the API runs on a different local port.
+
 ## Git Notes
 
 Runtime files are ignored by `.gitignore`, including build outputs, SQLite database files, logs, and local `.env` files. Commit `.env.example`, not `.env`.

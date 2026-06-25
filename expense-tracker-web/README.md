@@ -21,4 +21,10 @@ http://localhost:5090
 
 The client talks to the API through `Services/ExpenseApiClient.cs`.
 
-The root `.env.example` documents the development URLs. The current Blazor client uses `http://localhost:5090` in `Program.cs` for the API base address.
+The API base URL is configured in:
+
+```text
+wwwroot/appsettings.json
+```
+
+Change `ApiBaseUrl` there if the backend API runs on a different port.

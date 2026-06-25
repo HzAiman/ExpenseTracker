@@ -8,9 +8,12 @@ builder.RootComponents.Add<App>("#app");
 builder.RootComponents.Add<HeadOutlet>("head::after");
 
 builder.Services.AddScoped(sp => new HttpClient { BaseAddress = new Uri(builder.HostEnvironment.BaseAddress) });
+var apiBaseUrl = builder.Configuration["ApiBaseUrl"]
+    ?? throw new InvalidOperationException("ApiBaseUrl is missing from Blazor configuration.");
+
 builder.Services.AddScoped(sp => new ExpenseApiClient(new HttpClient
 {
-    BaseAddress = new Uri("http://localhost:5090")
+    BaseAddress = new Uri(apiBaseUrl)
 }));
 
 await builder.Build().RunAsync();
