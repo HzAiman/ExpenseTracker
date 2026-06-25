@@ -1,0 +1,166 @@
+@page "/"
+@inject ExpenseApiClient ApiClient
+
+<PageTitle>Expense Dashboard</PageTitle>
+
+<section class="page-header">
+    <div>
+        <p class="eyebrow">Expense Tracker</p>
+        <h1>Dashboard</h1>
+    </div>
+</section>
+
+<section class="toolbar">
+    <label>
+        Year
+        <input class="form-control" type="number" min="1" max="9999" @bind="selectedYear" />
+    </label>
+    <label>
+        Month
+        <select class="form-select" @bind="selectedMonthValue">
+            <option value="">Full year</option>
+            @foreach (var month in Months)
+            {
+                <option value="@month.Number">@month.Name</option>
+            }
+        </select>
+    </label>
+    <button class="btn btn-primary" @onclick="LoadSummaryAsync" disabled="@isLoading">Filter</button>
+</section>
+
+@if (!string.IsNullOrWhiteSpace(errorMessage))
+{
+    <div class="alert alert-danger" role="alert">@errorMessage</div>
+}
+else if (isLoading)
+{
+    <div class="loading-panel">Loading summary...</div>
+}
+else if (summary is not null)
+{
+    <section class="metric-grid">
+        <div class="metric-card">
+            <span>Total spend</span>
+            <strong>@FormatMoney(summary.Total)</strong>
+        </div>
+        <div class="metric-card">
+            <span>Period</span>
+            <strong>@summary.From.ToString("MMM d, yyyy") - @summary.To.ToString("MMM d, yyyy")</strong>
+        </div>
+        <div class="metric-card">
+            <span>Transactions</span>
+            <strong>@summary.Months.Sum(month => month.ExpenseCount)</strong>
+        </div>
+        <div class="metric-card">
+            <span>Top category</span>
+            <strong>@(summary.Categories.FirstOrDefault()?.Category ?? "None")</strong>
+        </div>
+    </section>
+
+    <section class="dashboard-grid">
+        <div class="panel">
+            <div class="panel-heading">
+                <h2>Monthly Totals</h2>
+                <span>@(summary.Period == "year" ? "12 months" : "Selected month")</span>
+            </div>
+            <div class="bar-list">
+                @foreach (var month in summary.Months)
+                {
+                    var percent = MaxMonthlyTotal == 0 ? 0 : (int)Math.Round(month.Total / MaxMonthlyTotal * 100);
+                    <div class="bar-row">
+                        <span>@MonthName(month.Month)</span>
+                        <div class="bar-track">
+                            <div class="bar-fill" style="width: @percent%"></div>
+                        </div>
+                        <strong>@FormatMoney(month.Total)</strong>
+                    </div>
+                }
+            </div>
+        </div>
+
+        <div class="panel">
+            <div class="panel-heading">
+                <h2>Category Breakdown</h2>
+                <span>@summary.Categories.Count categories</span>
+            </div>
+            <div class="category-list">
+                @foreach (var category in summary.Categories)
+                {
+                    <div class="category-row">
+                        <div>
+                            <strong>@category.Category</strong>
+                            <span>@category.ExpenseCount transactions</span>
+                        </div>
+                        <strong>@FormatMoney(category.Total)</strong>
+                    </div>
+                }
+            </div>
+        </div>
+    </section>
+}
+
+@code {
+    private static readonly IReadOnlyList<(int Number, string Name)> Months =
+    [
+        (1, "January"),
+        (2, "February"),
+        (3, "March"),
+        (4, "April"),
+        (5, "May"),
+        (6, "June"),
+        (7, "July"),
+        (8, "August"),
+        (9, "September"),
+        (10, "October"),
+        (11, "November"),
+        (12, "December")
+    ];
+
+    private int selectedYear = 2026;
+    private string selectedMonthValue = "";
+    private ExpenseSummaryResponse? summary;
+    private string? errorMessage;
+    private bool isLoading;
+
+    private decimal MaxMonthlyTotal => summary?.Months.Count > 0
+        ? summary.Months.Max(month => month.Total)
+        : 0;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadSummaryAsync();
+    }
+
+    private async Task LoadSummaryAsync()
+    {
+        isLoading = true;
+        errorMessage = null;
+
+        try
+        {
+            int? month = string.IsNullOrWhiteSpace(selectedMonthValue)
+                ? null
+                : int.Parse(selectedMonthValue);
+
+            summary = await ApiClient.GetSummaryAsync(selectedYear, month);
+        }
+        catch (Exception exception)
+        {
+            errorMessage = exception.Message;
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private static string MonthName(int month)
+    {
+        return Months.First(item => item.Number == month).Name[..3];
+    }
+
+    private static string FormatMoney(decimal amount)
+    {
+        return $"MYR {amount:N2}";
+    }
+}

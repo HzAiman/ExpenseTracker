@@ -1,0 +1,31 @@
+@expense_tracker_api_HostAddress = http://localhost:5090
+
+GET {{expense_tracker_api_HostAddress}}/api/categories
+Accept: application/json
+
+###
+
+POST {{expense_tracker_api_HostAddress}}/api/expenses
+Content-Type: application/json
+
+{
+  "amount": 24.50,
+  "categoryId": 1,
+  "description": "Lunch",
+  "date": "2026-06-25"
+}
+
+###
+
+GET {{expense_tracker_api_HostAddress}}/api/expenses?category=Food&from=2026-06-01&to=2026-06-30
+Accept: application/json
+
+###
+
+GET {{expense_tracker_api_HostAddress}}/api/expenses/summary?year=2026
+Accept: application/json
+
+###
+
+GET {{expense_tracker_api_HostAddress}}/api/expenses/summary?year=2026&month=6
+Accept: application/json

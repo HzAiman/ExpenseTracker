@@ -1,0 +1,325 @@
+@page "/expenses"
+@inject ExpenseApiClient ApiClient
+
+<PageTitle>Expenses</PageTitle>
+
+<section class="page-header">
+    <div>
+        <p class="eyebrow">Transactions</p>
+        <h1>Expenses</h1>
+    </div>
+</section>
+
+<section class="toolbar">
+    <label>
+        Category
+        <select class="form-select" @bind="filterCategory">
+            <option value="">All categories</option>
+            @foreach (var category in categories)
+            {
+                <option value="@category.Name">@category.Name</option>
+            }
+        </select>
+    </label>
+    <label>
+        From
+        <input class="form-control" type="date" value="@filterFrom" @onchange="UpdateFilterFrom" />
+    </label>
+    <label>
+        To
+        <input class="form-control" type="date" value="@filterTo" @onchange="UpdateFilterTo" />
+    </label>
+    <button class="btn btn-primary" @onclick="LoadExpensesAsync" disabled="@isLoading">Apply</button>
+</section>
+
+@if (!string.IsNullOrWhiteSpace(message))
+{
+    <div class="alert @messageClass" role="alert">@message</div>
+}
+
+<section class="work-grid">
+    <div class="panel">
+        <div class="panel-heading">
+            <h2>@(editingId is null ? "Add Expense" : $"Edit Expense #{editingId}")</h2>
+        </div>
+
+        <EditForm Model="form" OnValidSubmit="SaveExpenseAsync">
+            <DataAnnotationsValidator />
+            <ValidationSummary />
+
+            <div class="form-grid">
+                <label>
+                    Amount
+                    <InputNumber class="form-control" @bind-Value="form.Amount" />
+                </label>
+                <label>
+                    Category
+                    <InputSelect class="form-select" @bind-Value="form.CategoryId">
+                        <option value="0">Select category</option>
+                        @foreach (var category in categories)
+                        {
+                            <option value="@category.Id">@category.Name</option>
+                        }
+                    </InputSelect>
+                </label>
+                <label>
+                    Date
+                    <InputText class="form-control" type="date" @bind-Value="form.Date" />
+                </label>
+                <label class="span-2">
+                    Description
+                    <InputText class="form-control" @bind-Value="form.Description" />
+                </label>
+            </div>
+
+            <div class="button-row">
+                <button class="btn btn-primary" type="submit" disabled="@isSaving">
+                    @(editingId is null ? "Create" : "Save changes")
+                </button>
+                <button class="btn btn-link" type="button" @onclick="ResetForm">Clear</button>
+            </div>
+        </EditForm>
+    </div>
+
+    <div class="panel">
+        <div class="panel-heading">
+            <h2>Expense List</h2>
+            <span>@expenses.Count records</span>
+        </div>
+
+        @if (isLoading)
+        {
+            <div class="loading-panel">Loading expenses...</div>
+        }
+        else if (expenses.Count == 0)
+        {
+            <div class="empty-state">No expenses match the selected filters.</div>
+        }
+        else
+        {
+            <div class="table-responsive">
+                <table class="table align-middle">
+                    <thead>
+                        <tr>
+                            <th>Date</th>
+                            <th>Category</th>
+                            <th>Description</th>
+                            <th class="text-end">Amount</th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var expense in PagedExpenses)
+                        {
+                            <tr>
+                                <td>@expense.Date.ToString("MMM d, yyyy")</td>
+                                <td>@expense.Category</td>
+                                <td>@expense.Description</td>
+                                <td class="text-end">@FormatMoney(expense.Amount)</td>
+                                <td class="actions">
+                                    <button class="btn btn-sm btn-outline-secondary" @onclick="() => EditExpense(expense)">Edit</button>
+                                    <button class="btn btn-sm btn-outline-danger" @onclick="() => DeleteExpenseAsync(expense.Id)">Delete</button>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="pager">
+                <div>
+                    Page @currentPage of @TotalPages
+                </div>
+                <div class="pager-controls">
+                    <label>
+                        Rows
+                        <select class="form-select form-select-sm" @bind="pageSize" @bind:after="ResetPager">
+                            <option value="10">10</option>
+                            <option value="25">25</option>
+                            <option value="50">50</option>
+                        </select>
+                    </label>
+                    <button class="btn btn-sm btn-outline-secondary" @onclick="PreviousPage" disabled="@(currentPage == 1)">Previous</button>
+                    <button class="btn btn-sm btn-outline-secondary" @onclick="NextPage" disabled="@(currentPage == TotalPages)">Next</button>
+                </div>
+            </div>
+        }
+    </div>
+</section>
+
+@code {
+    private readonly ExpenseForm form = new();
+    private IReadOnlyList<CategoryResponse> categories = [];
+    private IReadOnlyList<ExpenseResponse> expenses = [];
+    private string filterCategory = "";
+    private string filterFrom = "2026-06-01";
+    private string filterTo = "2026-06-30";
+    private string? message;
+    private string messageClass = "alert-info";
+    private int? editingId;
+    private int currentPage = 1;
+    private int pageSize = 10;
+    private bool isLoading;
+    private bool isSaving;
+
+    private int TotalPages => Math.Max(1, (int)Math.Ceiling(expenses.Count / (double)pageSize));
+
+    private IReadOnlyList<ExpenseResponse> PagedExpenses => expenses
+        .Skip((currentPage - 1) * pageSize)
+        .Take(pageSize)
+        .ToList();
+
+    protected override async Task OnInitializedAsync()
+    {
+        categories = await ApiClient.GetCategoriesAsync();
+        ResetForm();
+        await LoadExpensesAsync();
+    }
+
+    private async Task LoadExpensesAsync()
+    {
+        isLoading = true;
+        message = null;
+
+        try
+        {
+            expenses = await ApiClient.GetExpensesAsync(filterCategory, filterFrom, filterTo);
+            currentPage = 1;
+        }
+        catch (Exception exception)
+        {
+            ShowMessage(exception.Message, true);
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private async Task SaveExpenseAsync()
+    {
+        isSaving = true;
+        message = null;
+
+        try
+        {
+            var request = new ExpenseRequest(
+                form.Amount,
+                form.CategoryId,
+                form.Description.Trim(),
+                form.Date);
+
+            if (editingId is null)
+            {
+                await ApiClient.CreateExpenseAsync(request);
+                ShowMessage("Expense created.", false);
+            }
+            else
+            {
+                await ApiClient.UpdateExpenseAsync(editingId.Value, request);
+                ShowMessage("Expense updated.", false);
+            }
+
+            ResetForm();
+            await LoadExpensesAsync();
+        }
+        catch (Exception exception)
+        {
+            ShowMessage(exception.Message, true);
+        }
+        finally
+        {
+            isSaving = false;
+        }
+    }
+
+    private void EditExpense(ExpenseResponse expense)
+    {
+        editingId = expense.Id;
+        form.Amount = expense.Amount;
+        form.CategoryId = expense.CategoryId;
+        form.Description = expense.Description;
+        form.Date = expense.Date.ToString("yyyy-MM-dd");
+    }
+
+    private void UpdateFilterFrom(ChangeEventArgs args)
+    {
+        filterFrom = args.Value?.ToString() ?? "";
+    }
+
+    private void UpdateFilterTo(ChangeEventArgs args)
+    {
+        filterTo = args.Value?.ToString() ?? "";
+    }
+
+    private async Task DeleteExpenseAsync(int id)
+    {
+        try
+        {
+            await ApiClient.DeleteExpenseAsync(id);
+            ShowMessage("Expense deleted.", false);
+            await LoadExpensesAsync();
+        }
+        catch (Exception exception)
+        {
+            ShowMessage(exception.Message, true);
+        }
+    }
+
+    private void ResetForm()
+    {
+        editingId = null;
+        form.Amount = 25;
+        form.CategoryId = categories.FirstOrDefault()?.Id ?? 0;
+        form.Description = "";
+        form.Date = DateOnly.FromDateTime(DateTime.Today).ToString("yyyy-MM-dd");
+    }
+
+    private void PreviousPage()
+    {
+        if (currentPage > 1)
+        {
+            currentPage--;
+        }
+    }
+
+    private void NextPage()
+    {
+        if (currentPage < TotalPages)
+        {
+            currentPage++;
+        }
+    }
+
+    private void ResetPager()
+    {
+        currentPage = 1;
+    }
+
+    private void ShowMessage(string text, bool isError)
+    {
+        message = text;
+        messageClass = isError ? "alert-danger" : "alert-success";
+    }
+
+    private static string FormatMoney(decimal amount)
+    {
+        return $"MYR {amount:N2}";
+    }
+
+    private sealed class ExpenseForm
+    {
+        [System.ComponentModel.DataAnnotations.Range(0.01, 1_000_000)]
+        public decimal Amount { get; set; }
+
+        [System.ComponentModel.DataAnnotations.Range(1, int.MaxValue, ErrorMessage = "Select a category.")]
+        public int CategoryId { get; set; }
+
+        [System.ComponentModel.DataAnnotations.Required]
+        [System.ComponentModel.DataAnnotations.MaxLength(240)]
+        public string Description { get; set; } = "";
+
+        [System.ComponentModel.DataAnnotations.Required]
+        public string Date { get; set; } = "";
+    }
+}
